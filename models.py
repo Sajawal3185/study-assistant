@@ -1,6 +1,7 @@
 from database import base 
 from sqlalchemy  import Column,Integer,String,DateTime,ForeignKey
 from datetime import datetime
+
 class Document(base):
     __tablename__ = "documents"
     id = Column(Integer,primary_key=True)
@@ -14,3 +15,6 @@ class Document(base):
 class User(base): 
  __tablename__ = "users" 
  id = Column(Integer,primary_key = True)
+ email = Column(String, unique=True,nullable=False)
+ hashed_password = Column(String,nullable=False)
+ created_at = Column(DateTime,default = datetime.utcnow)

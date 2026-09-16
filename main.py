@@ -6,7 +6,16 @@ from models import Document
 from fastapi import FastAPI, Depends, HTTPException
 from typing import Optional 
 from enum import Enum
+from authentication import get_password_hash,verify_password,create_access_token,decode_access_token
+from schema import UserCreate
+from models import User
+from fastapi.security import OAuth2PasswordBearer
 
+# This tells FastAPI to look for a token in the request headers
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+from database import base, engine
+base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -93,3 +102,37 @@ def delete_document(document_id: int, db: Session = Depends(get_db)):
     db.delete(results)
     db.commit()
     return {"message": "Document deleted successfully"}
+
+@app.post("/signup")
+def signup_user(user: UserCreate,db: Session = Depends(get_db)):
+    hashed = get_password_hash(user.password)
+    new_user = User(email=user.email, hashed_password=hashed)
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created successfully"}
+
+@app.post("/login")
+def login_user(user_credentials: UserCreate,db: Session = Depends(get_db)):
+   client_email = user_credentials.email
+   client_password = user_credentials.password
+   user = db.query(User).filter(User.email == client_email).first()
+   if user is None:
+            raise HTTPException(status_code=401, detail="Incorrect email or password")
+   is_valid_password = verify_password(client_password,user.hashed_password)
+   if is_valid_password is False:
+               raise HTTPException(status_code=401, detail="Incorrect email or password")
+   access_token = create_access_token(data={"sub":user_credentials.email})
+   return {"access_token":access_token,"token_type":"bearer"}
+
+@app.get("/protected-data")
+def get_protected_data(token: str = Depends(oauth2_scheme)):
+    # 1. Verify the token isn't forged or expired
+    payload = decode_access_token(token)
+    # 2. If verification fails (returns None), kick them out
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    # 3. If valid, let them see the data!
+    return {"message": "You are in!", "user_email": payload.get("sub")}
+
+   
+   
